@@ -11,19 +11,51 @@ Repositório-modelo das Aulas 21, 22 e 23: construção de dois dashboards em St
 
 ### Dashboard de João Pedro
 
-O [app.py](app.py) contém o esqueleto do dashboard **Student Performance**, seguindo
-o [prompt](prompts/prompt.md), o [rascunho](entregas/rascunho_dashboard1.png) e os
-notebooks [EDA](notebooks/eda-joao-pedro.ipynb) e
+O [app.py](app.py) contém os dois dashboards **Student Performance** da Aula 22,
+evoluindo o [prompt inicial](prompts/prompt.md) e o
+[rascunho do Dashboard 1](entregas/rascunho_dashboard1.png), com base nos notebooks
+[EDA](notebooks/eda-joao-pedro.ipynb) e
 [EDA com downloads](notebooks/eda-joao-pedro-downloads.ipynb).
 
-- Sidebar com seleção de variáveis e intervalos aplicados conjuntamente ao CSV tratado.
-- Métricas do recorte: quantidade de alunos, média de G3 e aprovação (G3 >= 10).
-- Espaços reservados para correlação de Spearman e histogramas, empilhados como no rascunho.
+- **Dashboard 1 — Exploração:** heatmap de Spearman e histogramas interativos com
+  Plotly Express, empilhados como no rascunho. Variáveis constantes são excluídas
+  apenas da correlação, com aviso, e continuam nas distribuições.
+- **Dashboard 2 — KPIs:** aprovação vs. reprovação (quantidades e percentuais),
+  média de G3, mediana de faltas e tempo de estudo semanal por faixas em horas
+  (quantidades e percentuais); gráficos Altair de faixa de estudo, notas e faltas × G3.
+- **Sidebar:** variáveis e intervalos inclusivos aplicados conjuntamente às duas abas.
+  Desmarcar uma variável remove também seu filtro. Sem variáveis, o Dashboard 1
+  mostra orientações; o Dashboard 2 continua disponível.
+- **Escolas:** filtro exclusivo da segunda aba. Sem escolas, o recorte fica vazio.
+- **Seleção vinculada:** clique nas barras de faixa de estudo para recalcular os
+  quatro KPIs e os outros dois gráficos; Shift + clique seleciona várias faixas.
+  Duplo clique ou o botão de limpeza remove a seleção. Mudanças nos filtros
+  também a limpam. As barras seletoras continuam mostrando todas as faixas
+  disponíveis no recorte de escolas e intervalos.
 - `studytime` e `failures` são variáveis ordinais, conforme a EDA; `studytime` não representa horas exatas.
+- **Sem dados:** contagem zero e métricas indisponíveis (`—`), sem resultados artificiais.
+- **Cache:** `@st.cache_data` no carregamento do CSV tratado. Se reexportar o CSV
+  durante uma sessão, use o menu do Streamlit → **Clear cache** para relê-lo.
+- **Tema:** tons de roxo e rosa, com versões clara/escura e fonte sem serifa.
 
-Os gráficos ainda são placeholders (`st.info`), conforme solicitado no prompt.
-Os comentários `TODO` indicam onde implementá-los com Plotly Express, usando os
-dados filtrados. Nenhum modelo de Machine Learning ou tratamento complexo é executado no app.
+O [rascunho do Dashboard 2](entregas/rascunho-dashboard2.png) foi gerado antes da
+implementação, após confirmar métricas e filtros. Veja a
+[justificativa das métricas](entregas/justificativa-metricas.md) e a
+[declaração de uso de IA](prompts/declaracao-uso-ia.md).
+Não há Machine Learning ou limpeza complexa no app. Correlação não implica causalidade.
+
+### Testes
+
+Com o ambiente virtual ativado, execute da raiz do projeto:
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+Os testes em [tests/test_app.py](tests/test_app.py) verificam os valores enviados
+aos gráficos, correlações, métricas, filtros, cache, payloads de seleção e casos
+de borda. Os cliques reais de seleção simples/múltipla e a limpeza de seleção
+também foram validados no navegador durante a implementação.
 
 ### Ambiente
 

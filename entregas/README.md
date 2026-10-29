@@ -10,17 +10,20 @@ Artefatos de entrega que não são sobre uso de IA (isso fica em [`prompts/`](..
 
 ## Checklist — Aula 21
 
-- [ ] `rascunho-dashboard1.jpg`/`.png`
+- [x] [Rascunho do Dashboard 1](rascunho_dashboard1.png)
 
 ## Checklist — Aula 22
 
-- [ ] `rascunho-dashboard2.jpg`/`.png`
-- [ ] `justificativa-metricas.md` preenchido (não só criado vazio)
+- [x] [Rascunho digital do Dashboard 2](rascunho-dashboard2.png), gerado com IA após definir métricas e widgets
+- [x] [Justificativa das métricas](justificativa-metricas.md) preenchida
 
 ## Checklist — entrega final (Aula 23)
 
-- [ ] Os dois rascunhos
-- [ ] `justificativa-metricas.md` completo
+- [x] Os dois rascunhos
+- [x] `justificativa-metricas.md` completo
+
+Os itens acima registram os arquivos locais produzidos, não a revisão final pelo
+aluno nem o deploy. Commit e push foram deixados para revisão a pedido do aluno.
 
 ## Modelo de `justificativa-metricas.md`
 
