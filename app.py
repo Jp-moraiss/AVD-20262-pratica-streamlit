@@ -1,173 +1,144 @@
-import altair as alt
 import pandas as pd
 import streamlit as st
 
 from src.data_loader import load_data
 
 st.set_page_config(
-    page_title="Avaliação de Correlação entre Variáveis Quantitativas do Heart Disease Dataset",
+    page_title="Student Performance | João Pedro",
     layout="wide",
 )
 
-st.title("Avaliação de Correlação entre Variáveis Quantitativas do Heart Disease Dataset")
+st.title("Desempenho escolar — Student Performance")
+st.caption("João Pedro Aguiar Morais | Análise e Visualização de Dados")
+st.write(
+    "Explore a relação entre faltas, tempo de estudo e desempenho escolar. "
+    "Use os filtros à esquerda para definir o grupo de alunos da análise."
+)
 
-df = load_data()
+try:
+    df = load_data()
+except (OSError, pd.errors.ParserError, pd.errors.EmptyDataError) as erro:
+    st.error(f"Não foi possível carregar o dataset tratado: {erro}")
+    st.stop()
 
-# Variáveis quantitativas do estudo (mesma lista VARS_QUANT do notebook de EDA)
-VARS_QUANT = ["age", "trestbps", "chol", "thalach", "oldpeak"]
+VARS_QUANT = ["age", "absences", "G1", "G2", "G3"]
+# Na EDA, studytime e failures são tratadas como variáveis ordinais.
+VARS_ORDINAIS = ["studytime", "failures"]
+ROTULOS = {
+    "age": "Idade (age)",
+    "absences": "Faltas (absences)",
+    "G1": "Nota do 1º período (G1)",
+    "G2": "Nota do 2º período (G2)",
+    "G3": "Nota final (G3)",
+    "studytime": "Faixa de tempo de estudo (studytime)",
+    "failures": "Reprovações anteriores (failures)",
+}
 
-# Sidebar: filtros (variáveis + intervalo)
+colunas_necessarias = VARS_QUANT + VARS_ORDINAIS
+colunas_ausentes = [coluna for coluna in colunas_necessarias if coluna not in df.columns]
+if colunas_ausentes:
+    st.error(f"Colunas ausentes no dataset tratado: {', '.join(colunas_ausentes)}.")
+    st.stop()
+
+if df.empty:
+    st.warning("O dataset tratado está vazio.")
+    st.stop()
+
+colunas_invalidas = [
+    coluna
+    for coluna in colunas_necessarias
+    if not pd.api.types.is_numeric_dtype(df[coluna]) or df[coluna].isna().any()
+]
+if colunas_invalidas:
+    st.error(
+        "As variáveis precisam ser numéricas e não conter valores ausentes. "
+        f"Confira a exportação da EDA: {', '.join(colunas_invalidas)}."
+    )
+    st.stop()
+
 with st.sidebar:
     st.header("Filtros")
-
     variaveis = st.multiselect(
-        "Variáveis Quantitativas",
-        options=VARS_QUANT,
-        default=VARS_QUANT,
-        help="Selecione as variáveis quantitativas que deseja analisar no dashboard.",
+        "Variáveis para análise",
+        options=colunas_necessarias,
+        default=["absences", "studytime", "failures", "G1", "G2", "G3"],
+        format_func=ROTULOS.__getitem__,
+        help="Selecione variáveis para os futuros gráficos e ajuste seus intervalos.",
+    )
+    st.caption(
+        "studytime é uma escala ordinal: 1 = menos de 2 h/semana; "
+        "2 = de 2 a 5 h; 3 = de 5 a 10 h; 4 = mais de 10 h. "
+        "As notas G1, G2 e G3 vão de 0 a 20."
     )
 
-    separar_por_classe = st.toggle(
-        "Distinguir por Classe",
-        value=False,
-        help="Colore a distribuição pela classe (doenca_cardiaca: Normal ou Cardíaco).",
-    )
-
-    # Um slider de intervalo para cada variável selecionada
     intervalos = {}
-    for var in variaveis:
-        if pd.api.types.is_integer_dtype(df[var]):
-            minimo, maximo, passo = int(df[var].min()), int(df[var].max()), 1
-        else:
-            minimo, maximo, passo = float(df[var].min()), float(df[var].max()), 0.1
-        intervalos[var] = st.slider(
-            f"Intervalo de {var}",
+    for variavel in variaveis:
+        minimo = df[variavel].min().item()
+        maximo = df[variavel].max().item()
+        if minimo == maximo:
+            st.caption(f"{ROTULOS[variavel]}: valor único {minimo}.")
+            continue
+        passo = 1 if pd.api.types.is_integer_dtype(df[variavel]) else 0.1
+        intervalos[variavel] = st.slider(
+            f"Intervalo de {ROTULOS[variavel]}",
             min_value=minimo,
             max_value=maximo,
             value=(minimo, maximo),
             step=passo,
-            key=f"intervalo_{var}",
+            key=f"intervalo_{variavel}",
         )
 
-# Mantém só os pacientes dentro de todos os intervalos escolhidos
 df_filtrado = df
-for var, (inicio, fim) in intervalos.items():
-    df_filtrado = df_filtrado[df_filtrado[var].between(inicio, fim)]
+for variavel, (inicio, fim) in intervalos.items():
+    df_filtrado = df_filtrado[df_filtrado[variavel].between(inicio, fim)]
 
-st.caption(f"{len(df_filtrado)} de {len(df)} pacientes dentro dos intervalos escolhidos.")
+st.caption(f"{len(df_filtrado)} de {len(df)} alunos dentro dos intervalos escolhidos.")
 
-# Dashboard 1: correlação (heatmap) à esquerda, distribuição (histograma) à direita
-col_correlacao, col_distribuicao = st.columns([1, 1.5])
-
-# Cores do histograma, em tons de sangue: vermelho arterial para Cardíaco, rosa claro para Normal
-COR_NORMAL = "#f4a6a6"
-COR_CARDIACO = "#c1121f"
-COR_HISTOGRAMA = COR_CARDIACO
-CORES_CLASSE = alt.Scale(domain=["Normal", "Cardíaco"], range=[COR_NORMAL, COR_CARDIACO])
-
-# Legenda das classes em texto, para caber no espaço livre da grade de histogramas
-LEGENDA_CLASSE = (
-    f"**Classe**  \n"
-    f":color[■]{{foreground=\"{COR_NORMAL}\"}} Normal  \n"
-    f":color[■]{{foreground=\"{COR_CARDIACO}\"}} Cardíaco"
+col_alunos, col_nota, col_aprovacao = st.columns(3)
+col_alunos.metric("Alunos no recorte", len(df_filtrado))
+col_nota.metric(
+    "Nota final média",
+    "—" if df_filtrado.empty else f"{df_filtrado['G3'].mean():.2f}",
+    help="Média de G3 no grupo filtrado, na escala de 0 a 20.",
+)
+col_aprovacao.metric(
+    "Taxa de aprovação",
+    "—" if df_filtrado.empty else f"{df_filtrado['G3'].ge(10).mean():.1%}",
+    help="Mesmo critério dos notebooks: aprovado quando G3 é maior ou igual a 10.",
 )
 
-with col_correlacao:
-    st.subheader("Correlação (Spearman)")
+if df_filtrado.empty:
+    st.warning("Nenhum aluno atende a todos os intervalos. Amplie os filtros.")
 
+with st.container(border=True):
+    st.subheader("Correlação (heatmap)")
+    st.caption("Método previsto: Spearman, utilizado nos notebooks de EDA.")
     if len(variaveis) < 2:
-        st.warning("Selecione pelo menos 2 variáveis para calcular a correlação.")
-    elif len(df_filtrado) < 30:
-        st.warning("Poucos pacientes nos intervalos escolhidos para calcular a correlação.")
+        st.warning("Selecione pelo menos 2 variáveis para a correlação.")
+    elif len(df_filtrado) < 2:
+        st.warning("São necessários pelo menos 2 alunos no recorte para a correlação.")
     else:
-        # Matriz de correlação de Spearman das variáveis selecionadas, em formato longo (uma linha por célula)
-        corr = (
-            df_filtrado[variaveis]
-            .corr(method="spearman")
-            .rename_axis(index="var_y", columns="var_x")
-            .stack()
-            .rename("correlacao")
-            .reset_index()
+        # TODO: Implementar heatmap com px.imshow da correlação de Spearman
+        # de df_filtrado[variaveis], incluindo absences, studytime e G3.
+        st.info(
+            "Espaço reservado para o heatmap interativo com Plotly Express. "
+            "Ele mostrará as associações entre as variáveis selecionadas."
         )
-        # Só o triângulo inferior, sem a diagonal (sempre 1): a matriz é simétrica, o resto é repetição
-        ordem = {var: i for i, var in enumerate(variaveis)}
-        corr = corr[corr["var_y"].map(ordem) > corr["var_x"].map(ordem)]
+    st.caption(
+        "studytime e failures são ordinais na EDA. "
+        "Uma associação com G3 não demonstra causa e efeito."
+    )
 
-        base = alt.Chart(corr).encode(
-            x=alt.X(
-                "var_x:N",
-                title=None,
-                sort=variaveis[:-1],  # a última variável só aparece nas linhas
-                axis=alt.Axis(labelAngle=0, labelFontSize=14),
-            ),
-            y=alt.Y("var_y:N", title=None, sort=variaveis[1:], axis=alt.Axis(labelFontSize=14)),  # a primeira só nas colunas
-        )
-        heatmap = base.mark_rect().encode(
-            color=alt.Color(
-                "correlacao:Q",
-                title="Spearman",
-                scale=alt.Scale(scheme="redblue", domain=[-1, 1], reverse=True),
-                legend=alt.Legend(titleFontSize=14, labelFontSize=13),
-            ),
-            tooltip=["var_x", "var_y", alt.Tooltip("correlacao:Q", format=".2f")],
-        )
-        valores = base.mark_text(fontSize=16).encode(
-            text=alt.Text("correlacao:Q", format=".2f"),
-            color=alt.condition(
-                "abs(datum.correlacao) > 0.5", alt.value("white"), alt.value("black")
-            ),
-        )
-
-        st.altair_chart(
-            (heatmap + valores).properties(height=380),
-            width="stretch",
-            alt="Mapa de calor (triângulo inferior, sem a diagonal) da correlação de Spearman entre as variáveis quantitativas selecionadas",
-        )
-
-with col_distribuicao:
-    st.subheader("Distribuição")
-
+with st.container(border=True):
+    st.subheader("Distribuição (histograma)")
     if not variaveis:
-        st.warning("Selecione pelo menos 1 variável para ver a distribuição.")
+        st.warning("Selecione pelo menos 1 variável para a distribuição.")
     elif df_filtrado.empty:
-        st.warning("Nenhum paciente dentro dos intervalos escolhidos.")
+        st.info("A distribuição será exibida quando houver alunos no recorte.")
     else:
-        # Com número par de variáveis não sobra espaço na grade: a legenda vai acima dela
-        if separar_por_classe and len(variaveis) % 2 == 0:
-            st.markdown(LEGENDA_CLASSE)
-
-        # Um histograma por variável selecionada, em grade de 2 colunas (cada um com a sua escala)
-        for inicio in range(0, len(variaveis), 2):
-            colunas = st.columns(2)
-            for coluna, var in zip(colunas, variaveis[inicio : inicio + 2]):
-                histograma = (
-                    alt.Chart(df_filtrado[[var, "doenca_cardiaca"]])
-                    .mark_bar()
-                    .encode(
-                        x=alt.X(f"{var}:Q", bin=alt.Bin(maxbins=20), title=var),
-                        y=alt.Y("count()", title="Pacientes"),
-                        tooltip=[alt.Tooltip("count()", title="Pacientes")],
-                    )
-                    .properties(height=200)
-                )
-                if separar_por_classe:
-                    histograma = histograma.encode(
-                        color=alt.Color(
-                            "doenca_cardiaca:N",
-                            title="Classe",
-                            scale=CORES_CLASSE,
-                            legend=None,
-                        ),
-                        tooltip=["doenca_cardiaca", alt.Tooltip("count()", title="Pacientes")],
-                    )
-                else:
-                    histograma = histograma.mark_bar(color=COR_HISTOGRAMA)
-
-                with coluna:
-                    st.altair_chart(histograma, width="stretch", alt=f"Histograma da variável {var}")
-
-            # Número ímpar de variáveis: a legenda ocupa o espaço que sobrou na última linha
-            if separar_por_classe and len(colunas) == 2 and len(variaveis[inicio : inicio + 2]) == 1:
-                colunas[1].markdown(LEGENDA_CLASSE)
-
-# TODO: Dashboard 2 — KPIs (Aula 22)
+        # TODO: Implementar histogramas com px.histogram para cada variável
+        # selecionada em df_filtrado; usar categorias discretas para as ordinais.
+        st.info(
+            "Espaço reservado para os histogramas interativos com Plotly Express. "
+            "Eles mostrarão a frequência de alunos nas variáveis selecionadas."
+        )

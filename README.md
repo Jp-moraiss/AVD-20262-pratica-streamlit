@@ -9,6 +9,24 @@ Repositório-modelo das Aulas 21, 22 e 23: construção de dois dashboards em St
 
 ## Setup
 
+### Dashboard de João Pedro
+
+O [app.py](app.py) contém o esqueleto do dashboard **Student Performance**, seguindo
+o [prompt](prompts/prompt.md), o [rascunho](entregas/rascunho_dashboard1.png) e os
+notebooks [EDA](notebooks/eda-joao-pedro.ipynb) e
+[EDA com downloads](notebooks/eda-joao-pedro-downloads.ipynb).
+
+- Sidebar com seleção de variáveis e intervalos aplicados conjuntamente ao CSV tratado.
+- Métricas do recorte: quantidade de alunos, média de G3 e aprovação (G3 >= 10).
+- Espaços reservados para correlação de Spearman e histogramas, empilhados como no rascunho.
+- `studytime` e `failures` são variáveis ordinais, conforme a EDA; `studytime` não representa horas exatas.
+
+Os gráficos ainda são placeholders (`st.info`), conforme solicitado no prompt.
+Os comentários `TODO` indicam onde implementá-los com Plotly Express, usando os
+dados filtrados. Nenhum modelo de Machine Learning ou tratamento complexo é executado no app.
+
+### Ambiente
+
 Requer **Python 3.11 a 3.15**. Confira a sua versão antes de começar:
 
 | Sistema | Verificar versão |
