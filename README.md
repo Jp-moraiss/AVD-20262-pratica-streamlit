@@ -18,17 +18,24 @@ evoluindo o [prompt inicial](prompts/prompt.md) e o
 [EDA com downloads](notebooks/eda-joao-pedro-downloads.ipynb).
 
 - **Dashboard 1 — Exploração:** heatmap de Spearman e histogramas interativos com
-  Plotly Express, empilhados como no rascunho. Variáveis constantes são excluídas
+  Plotly Express, empilhados como no rascunho. O heatmap mostra somente o triângulo
+  inferior, sem a diagonal principal nem correlações duplicadas. Variáveis constantes são excluídas
   apenas da correlação, com aviso, e continuam nas distribuições.
+  A única métrica desta aba é **Alunos no recorte**.
 - **Dashboard 2 — KPIs:** aprovação vs. reprovação (quantidades e percentuais),
   média de G3, mediana de faltas e tempo de estudo semanal por faixas em horas
   (quantidades e percentuais); gráficos Altair de faixa de estudo, notas e faltas × G3.
 - **Sidebar:** variáveis e intervalos inclusivos aplicados conjuntamente às duas abas.
   Desmarcar uma variável remove também seu filtro. Sem variáveis, o Dashboard 1
   mostra orientações; o Dashboard 2 continua disponível.
-- **Escolas:** filtro exclusivo da segunda aba. Sem escolas, o recorte fica vazio.
+- **Escolas:** filtro na sidebar, exclusivo da segunda aba. Sem escolas, o recorte fica vazio.
+- **Layout do Dashboard 2:** conforme o [rascunho manual](entregas/rascunho-manual-dashboard2.png),
+  um bloco de métricas no topo e outro de visualizações abaixo. O donut com
+  storytelling, as barras de estudo, o histograma e a dispersão ficam no segundo bloco.
 - **Seleção vinculada:** clique nas barras de faixa de estudo para recalcular os
-  quatro KPIs e os outros dois gráficos; Shift + clique seleciona várias faixas.
+  quatro KPIs, o donut e os outros dois gráficos; Shift + clique seleciona várias faixas.
+  As barras empilham aprovados e reprovados; clicar em qualquer segmento seleciona
+  a faixa de estudo inteira, não apenas a situação.
   Duplo clique ou o botão de limpeza remove a seleção. Mudanças nos filtros
   também a limpam. As barras seletoras continuam mostrando todas as faixas
   disponíveis no recorte de escolas e intervalos.
@@ -38,8 +45,9 @@ evoluindo o [prompt inicial](prompts/prompt.md) e o
   durante uma sessão, use o menu do Streamlit → **Clear cache** para relê-lo.
 - **Tema:** tons de roxo e rosa, com versões clara/escura e fonte sem serifa.
 
-O [rascunho do Dashboard 2](entregas/rascunho-dashboard2.png) foi gerado antes da
-implementação, após confirmar métricas e filtros. Veja a
+O [rascunho digital inicial do Dashboard 2](entregas/rascunho-dashboard2.png) foi gerado antes da
+implementação, após confirmar métricas e filtros. O layout foi depois ajustado
+ao rascunho manual do aluno. Veja a
 [justificativa das métricas](entregas/justificativa-metricas.md) e a
 [declaração de uso de IA](prompts/declaracao-uso-ia.md).
 Não há Machine Learning ou limpeza complexa no app. Correlação não implica causalidade.

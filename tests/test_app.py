@@ -29,13 +29,9 @@ class DashboardTests(unittest.TestCase):
         self.assertFalse(app.exception, [error.message for error in app.exception])
         return app
 
-    def assert_metrics(self, app, expected, offset=3):
-        values = [
-            str(len(expected)),
-            "—" if expected.empty else f"{expected.G3.mean():.2f}",
-            "—" if expected.empty else f"{expected.G3.ge(10).mean():.1%}",
-        ]
-        if offset == 3:
+    def assert_metrics(self, app, expected, offset=1):
+        values = [str(len(expected))]
+        if offset == 1:
             values = [
                 "—" if expected.empty else f"{expected.G3.ge(10).mean():.1%}",
                 "—" if expected.empty else f"{expected.G3.lt(10).mean():.1%}",
@@ -43,8 +39,25 @@ class DashboardTests(unittest.TestCase):
                 "—" if expected.empty else f"{expected.absences.median():.1f}",
             ]
             captions = [caption.value for caption in app.caption]
-            self.assertIn(f"Aprovados: {expected.G3.ge(10).sum()} alunos", captions)
-            self.assertIn(f"Reprovados: {expected.G3.lt(10).sum()} alunos", captions)
+            approved = int(expected.G3.ge(10).sum())
+            failed = int(expected.G3.lt(10).sum())
+            for label, count in [("Aprovados", approved), ("Reprovados", failed)]:
+                percentage = "—" if expected.empty else f"{count / len(expected):.1%}"
+                self.assertIn(f"{label}: {count} alunos ({percentage})", captions)
+            donuts = [
+                chart for chart in app.get("vega_lite_chart")
+                if json.loads(chart.proto.spec)["mark"]["type"] == "arc"
+            ]
+            self.assertEqual(len(donuts), 0 if expected.empty else 1)
+            if donuts:
+                spec = json.loads(donuts[0].proto.spec)
+                self.assertEqual(spec["mark"]["type"], "arc")
+                self.assertGreater(spec["mark"]["innerRadius"], 0)
+                pd.testing.assert_frame_equal(self.chart_data(donuts[0]), pd.DataFrame({
+                    "situacao": ["Aprovado", "Reprovado"],
+                    "alunos": [approved, failed],
+                    "percentual": [approved / len(expected), failed / len(expected)],
+                }))
             counts = [int(expected.studytime.eq(code).sum()) for code in range(1, 5)]
             pd.testing.assert_frame_equal(app.dataframe[0].value, pd.DataFrame({
                 "Horas/semana": ["Menos de 2 h", "De 2 a 5 h", "De 5 a 10 h", "Mais de 10 h"],
@@ -66,27 +79,118 @@ class DashboardTests(unittest.TestCase):
     def chart_data(self, chart):
         return pa.ipc.open_stream(chart.proto.datasets[0].data.data).read_all().to_pandas()
 
+    def study_charts(self, app):
+        return [
+            chart for chart in app.get("vega_lite_chart")
+            if json.loads(chart.proto.spec)["mark"]["type"] != "arc"
+        ]
+
+    def test_donut_storytelling(self):
+        cases = [
+            ([10, 10, 10, 9], "número de aprovados é aproximadamente **3,00 vezes** o número de reprovados."),
+            ([10, 9, 9, 9], "número de reprovados é aproximadamente **3,00 vezes** o número de aprovados."),
+            ([10, 9], "**O número de aprovados é igual ao número de reprovados.**"),
+            ([10, 20], "**Todos os alunos do recorte foram aprovados.** Não há reprovados."),
+            ([0, 9], "**Todos os alunos do recorte foram reprovados.** Não há aprovados."),
+        ]
+        for grades, story in cases:
+            with self.subTest(grades=grades):
+                sample = self.df.iloc[:len(grades)].copy()
+                sample["G3"] = grades
+                with patch("src.data_loader.load_data", return_value=sample):
+                    app = self.run_app()
+                self.assert_metrics(app, sample)
+                self.assertTrue(any(story in element.value for element in app.markdown))
+
     def assert_correlations(self, app, expected, variables):
         spec = json.loads(app.get("plotly_chart")[0].proto.spec)
         encoded = spec["data"][0]["z"]
         matrix = np.frombuffer(base64.b64decode(encoded["bdata"]), dtype=encoded["dtype"])
+        matrix = matrix.reshape(len(variables), len(variables))
+        lower = np.tril_indices(len(variables), k=-1)
         np.testing.assert_allclose(
-            matrix.reshape(len(variables), len(variables)),
-            expected[variables].corr(method="spearman"),
+            matrix[lower],
+            expected[variables].corr(method="spearman").to_numpy()[lower],
         )
+        self.assertTrue(np.isnan(matrix[np.triu_indices(len(variables))]).all())
+        self.assertEqual(np.isfinite(matrix).sum(), len(variables) * (len(variables) - 1) // 2)
+        self.assertFalse(spec["data"][0]["hoverongaps"])
+        self.assertFalse(spec["data"][0]["connectgaps"])
         self.assertEqual(spec["layout"]["coloraxis"]["cmin"], -1)
         self.assertEqual(spec["layout"]["coloraxis"]["cmax"], 1)
+
+    def test_correlation_triangle_follows_selected_order(self):
+        app = self.run_app()
+        for variables in [["G3", "G1"], ["G1", "G3"], ["studytime", "absences", "G3"]]:
+            with self.subTest(variables=variables):
+                app.multiselect(key="variaveis").set_value(variables)
+                self.run_app(app)
+                self.assert_correlations(app, self.df, variables)
+                spec = json.loads(app.get("plotly_chart")[0].proto.spec)
+                self.assertEqual(spec["data"][0]["x"], spec["data"][0]["y"])
+                for label, variable in zip(spec["data"][0]["x"], variables):
+                    self.assertIn(f"({variable})", label)
 
     def test_initial_charts_and_metrics(self):
         app = self.run_app()
         self.assertEqual(len(app.tabs), 2)
         self.assertEqual(len(app.get("plotly_chart")), 7)
-        self.assertEqual(len(app.get("vega_lite_chart")), 3)
+        self.assertEqual(len(app.get("vega_lite_chart")), 4)
         self.assert_metrics(app, self.df, offset=0)
         self.assert_metrics(app, self.df)
         self.assert_correlations(app, self.df, app.multiselect(key="variaveis").value)
-        self.assertEqual(self.chart_data(app.get("vega_lite_chart")[0]).alunos.sum(), len(self.df))
-        self.assertEqual(len(self.chart_data(app.get("vega_lite_chart")[1])), len(self.df))
+        self.assertEqual(self.chart_data(self.study_charts(app)[0]).alunos.sum(), len(self.df))
+        self.assertEqual(len(self.chart_data(self.study_charts(app)[1])), len(self.df))
+        self.assertEqual(
+            [(metric.label, metric.value) for metric in app.tabs[0].get("metric")],
+            [("Alunos no recorte", str(len(self.df)))],
+        )
+
+    def test_study_bars_stack_outcomes_and_select_whole_range(self):
+        app = self.run_app()
+        app.slider(key="intervalo_absences").set_value((0, 5))
+        app.multiselect(key="escolas").set_value(["GP"])
+        self.run_app(app)
+        chart = self.study_charts(app)[0]
+        spec = json.loads(chart.proto.spec)
+        self.assertEqual(spec["mark"]["type"], "bar")
+        self.assertEqual(spec["encoding"]["y"]["stack"], "zero")
+        self.assertEqual(spec["encoding"]["color"]["field"], "situacao")
+        self.assertEqual(spec["encoding"]["color"]["scale"]["domain"], ["Aprovado", "Reprovado"])
+        self.assertEqual(spec["params"][0]["select"]["fields"], ["studytime"])
+        expected = self.df[self.df.absences.between(0, 5) & self.df.school.eq("GP")]
+        summary = self.chart_data(chart)
+        self.assertEqual(summary.alunos.sum(), len(expected))
+        for code in expected.studytime.unique():
+            for outcome in ["Aprovado", "Reprovado"]:
+                group = expected[
+                    expected.studytime.eq(code) & expected.G3.ge(10).eq(outcome == "Aprovado")
+                ]
+                segment = summary[summary.studytime.eq(code) & summary.situacao.eq(outcome)]
+                self.assertEqual(segment.alunos.sum(), len(group))
+                if not group.empty:
+                    self.assertAlmostEqual(segment.nota_media.iloc[0], group.G3.mean())
+        self.assert_metrics(app, expected)
+
+    def test_metrics_and_visualizations_are_separate(self):
+        app = self.run_app()
+        blocks = [
+            block for block in app.tabs[1].children.values()
+            if block.type == "flex_container"
+        ]
+        self.assertEqual([block.key for block in blocks], ["metricas_kpi", "visualizacoes_kpi"])
+        metrics, visuals = blocks
+        self.assertEqual(len(metrics.get("metric")), 4)
+        self.assertEqual(len(metrics.get("dataframe")), 1)
+        self.assertFalse(metrics.get("vega_lite_chart"))
+        self.assertFalse(metrics.get("plotly_chart"))
+        self.assertEqual(len(visuals.get("vega_lite_chart")), 4)
+        self.assertFalse(visuals.get("metric"))
+        self.assertTrue(metrics.proto.flex_container.border)
+        self.assertTrue(visuals.proto.flex_container.border)
+        self.assertEqual(app.sidebar.multiselect(key="escolas").value, ["GP", "MS"])
+        self.assertEqual(len(app.tabs[1].get("multiselect")), 0)
+        self.assertEqual(len(app.sidebar.button), 1)
 
     def test_combined_filters_recalculate_both_dashboards(self):
         app = self.run_app()
@@ -108,7 +212,7 @@ class DashboardTests(unittest.TestCase):
                 app.multiselect(key="variaveis").set_value(variables)
                 self.run_app(app)
                 self.assertEqual(len(app.get("plotly_chart")), chart_count)
-                self.assertEqual(len(app.get("vega_lite_chart")), 3)
+                self.assertEqual(len(app.get("vega_lite_chart")), 4)
                 self.assert_metrics(app, self.df)
         app.slider(key="intervalo_absences").set_value((0, 0))
         self.run_app(app)
@@ -138,6 +242,7 @@ class DashboardTests(unittest.TestCase):
         self.assertTrue(app.warning)
         self.assertFalse(app.get("plotly_chart"))
         self.assertFalse(app.get("vega_lite_chart"))
+        self.assertTrue(any("Sem alunos no recorte para comparar" in message.value for message in app.info))
 
     def test_school_filter_is_exclusive_and_empty_means_no_students(self):
         app = self.run_app()
@@ -167,7 +272,7 @@ class DashboardTests(unittest.TestCase):
                     app = self.run_app()
                 expected = self.df[self.df.studytime.isin(faixas)] if faixas else self.df
                 self.assert_metrics(app, expected)
-                for chart in app.get("vega_lite_chart")[1:]:
+                for chart in self.study_charts(app)[1:]:
                     plotted = self.chart_data(chart)
                     pd.testing.assert_frame_equal(
                         plotted[["studytime", "absences", "G3"]].reset_index(drop=True),
@@ -183,7 +288,7 @@ class DashboardTests(unittest.TestCase):
         app.multiselect(key="escolas").set_value(["MS"])
         self.run_app(app)
         self.assertEqual(app.session_state["revisao_estudo"], revision + 2)
-        self.assertTrue(app.get("vega_lite_chart")[0].proto.id.endswith(f"estudo_{revision + 2}"))
+        self.assertTrue(self.study_charts(app)[0].proto.id.endswith(f"estudo_{revision + 2}"))
 
     def test_dataset_errors_are_explicit(self):
         for data in [

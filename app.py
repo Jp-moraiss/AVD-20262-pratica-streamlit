@@ -1,4 +1,5 @@
 import altair as alt
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -10,20 +11,65 @@ def limpar_selecao_estudo() -> None:
     st.session_state["revisao_estudo"] += 1
 
 
+def exibir_donut_aprovacao(dados: pd.DataFrame) -> None:
+    st.markdown("#### Aprovação vs. reprovação")
+    aprovados = int(dados["G3"].ge(10).sum())
+    reprovados = int(dados["G3"].lt(10).sum())
+    if dados.empty:
+        st.info("Sem alunos no recorte para comparar aprovação e reprovação.")
+    else:
+        resumo = pd.DataFrame({
+            "situacao": ["Aprovado", "Reprovado"],
+            "alunos": [aprovados, reprovados],
+            "percentual": [aprovados / len(dados), reprovados / len(dados)],
+        })
+        donut = (
+            alt.Chart(resumo)
+            .mark_arc(innerRadius=45)
+            .encode(
+                theta=alt.Theta("alunos:Q", stack=True),
+                color=alt.Color(
+                    "situacao:N", title=None, scale=CORES_SITUACAO,
+                    legend=alt.Legend(orient="bottom"),
+                ),
+                tooltip=[
+                    alt.Tooltip("situacao:N", title="Situação"),
+                    alt.Tooltip("alunos:Q", title="Alunos"),
+                    alt.Tooltip("percentual:Q", title="Percentual", format=".1%"),
+                ],
+            )
+            .properties(height=210)
+        )
+        st.altair_chart(donut, key="aprovacao_donut", width="stretch")
+        if reprovados == 0:
+            st.markdown("**Todos os alunos do recorte foram aprovados.** Não há reprovados.")
+        elif aprovados == 0:
+            st.markdown("**Todos os alunos do recorte foram reprovados.** Não há aprovados.")
+        elif aprovados == reprovados:
+            st.markdown("**O número de aprovados é igual ao número de reprovados.**")
+        else:
+            maior, menor = (
+                ("aprovados", "reprovados") if aprovados > reprovados
+                else ("reprovados", "aprovados")
+            )
+            razao = f"{max(aprovados, reprovados) / min(aprovados, reprovados):.2f}".replace(".", ",")
+            st.markdown(
+                f"Neste recorte, o número de {maior} é aproximadamente "
+                f"**{razao} vezes** o número de {menor}."
+            )
+
+
 def exibir_metricas(dados: pd.DataFrame, dashboard_kpis: bool = False) -> None:
     if dashboard_kpis:
         col_situacao, col_media, col_faltas, col_estudo = st.columns(4)
         with col_situacao:
             st.markdown("**Taxa de aprovação vs. reprovação**")
-            for situacao, quantidade in [
-                ("Aprovados", int(dados["G3"].ge(10).sum())),
-                ("Reprovados", int(dados["G3"].lt(10).sum())),
-            ]:
-                st.metric(
-                    situacao,
-                    "—" if dados.empty else f"{quantidade / len(dados):.1%}",
-                )
-                st.caption(f"{situacao}: {quantidade} alunos")
+            aprovados = int(dados["G3"].ge(10).sum())
+            reprovados = int(dados["G3"].lt(10).sum())
+            for situacao, quantidade in [("Aprovados", aprovados), ("Reprovados", reprovados)]:
+                percentual = "—" if dados.empty else f"{quantidade / len(dados):.1%}"
+                st.metric(situacao, percentual)
+                st.caption(f"{situacao}: {quantidade} alunos ({percentual})")
         col_media.metric(
             "Média da nota final",
             "—" if dados.empty else f"{dados['G3'].mean():.2f}",
@@ -49,18 +95,7 @@ def exibir_metricas(dados: pd.DataFrame, dashboard_kpis: bool = False) -> None:
             )
         return
 
-    colunas = st.columns(3)
-    colunas[0].metric("Alunos no recorte", len(dados))
-    colunas[1].metric(
-        "Nota final média",
-        "—" if dados.empty else f"{dados['G3'].mean():.2f}",
-        help="Média de G3 no grupo filtrado, na escala de 0 a 20.",
-    )
-    colunas[2].metric(
-        "Taxa de aprovação",
-        "—" if dados.empty else f"{dados['G3'].ge(10).mean():.1%}",
-        help="Alunos com G3 >= 10 divididos pelo total de alunos do recorte.",
-    )
+    st.metric("Alunos no recorte", len(dados))
 
 
 st.set_page_config(
@@ -175,6 +210,17 @@ with st.sidebar:
             on_change=limpar_selecao_estudo,
         )
 
+    st.subheader("Filtros do Dashboard 2")
+    escolas = st.multiselect(
+        "Escolas",
+        options=sorted(df["school"].unique().tolist()),
+        default=sorted(df["school"].unique().tolist()),
+        key="escolas",
+        on_change=limpar_selecao_estudo,
+        help="Este filtro afeta apenas o Dashboard 2. Sem escolas, o recorte fica vazio.",
+    )
+    st.button("Limpar seleção do gráfico", on_click=limpar_selecao_estudo)
+
 df_filtrado = df
 for variavel, (inicio, fim) in intervalos.items():
     df_filtrado = df_filtrado[df_filtrado[variavel].between(inicio, fim)]
@@ -208,6 +254,9 @@ with aba_exploracao:
                 st.info("Amplie os intervalos para ter pelo menos 2 variáveis não constantes.")
             else:
                 correlacao = df_filtrado[validas].corr(method="spearman")
+                correlacao = correlacao.where(
+                    np.tril(np.ones(correlacao.shape, dtype=bool), k=-1)
+                )
                 heatmap = px.imshow(
                     correlacao.rename(index=ROTULOS, columns=ROTULOS),
                     text_auto=True,
@@ -217,10 +266,13 @@ with aba_exploracao:
                     aspect="auto",
                     labels={"color": "Spearman"},
                 )
-                heatmap.update_traces(texttemplate="%{z:.2f}")
+                heatmap.update_traces(
+                    texttemplate="%{z:.2f}", hoverongaps=False, connectgaps=False,
+                )
                 heatmap.update_layout(height=430, margin=dict(t=20, b=20))
                 st.plotly_chart(heatmap, width="stretch", key="correlacao")
         st.caption(
+            "Apenas o triângulo inferior, sem a diagonal principal, é exibido. "
             "studytime e failures são ordinais na EDA. "
             "Uma associação com G3 não demonstra causa e efeito."
         )
@@ -266,31 +318,33 @@ with aba_kpis:
         "Filtros da sidebar + escola + seleção nas barras de estudo. "
         "Filtrar G3 altera diretamente a média e a aprovação."
     )
-    escolas = st.multiselect(
-        "Escolas",
-        options=sorted(df["school"].unique().tolist()),
-        default=sorted(df["school"].unique().tolist()),
-        key="escolas",
-        on_change=limpar_selecao_estudo,
-        help="Este filtro afeta apenas o Dashboard 2. Sem escolas, o recorte fica vazio.",
-    )
-    st.button("Limpar seleção do gráfico", on_click=limpar_selecao_estudo)
     dados_escolas = df_filtrado[df_filtrado["school"].isin(escolas)]
     # O espaço mantém os KPIs acima do gráfico que fornece a seleção no mesmo rerun.
-    espaco_metricas = st.container()
+    espaco_metricas = st.container(border=True, key="metricas_kpi")
+    espaco_visualizacoes = st.container(border=True, key="visualizacoes_kpi")
     dados_selecionados = dados_escolas
 
+with espaco_visualizacoes:
+    st.subheader("Visualizações")
+    col_donut, col_estudo = st.columns([1, 2])
+    espaco_desempenho = st.container()
+
+with col_estudo:
     if dados_escolas.empty:
         st.warning("Nenhum aluno nas escolas e intervalos selecionados.")
     else:
         st.markdown("#### Alunos por faixa de estudo")
         st.caption(
-            "Clique em uma barra para filtrar os KPIs e os gráficos abaixo. "
+            "Cada barra empilha aprovados e reprovados. Clique em qualquer segmento "
+            "para selecionar a faixa inteira e filtrar os KPIs, o donut e os demais gráficos. "
             "Use Shift + clique para várias faixas; dê duplo clique ou use o botão para limpar. "
             "As barras sempre mostram o recorte anterior à seleção."
         )
         resumo_estudo = (
-            dados_escolas.groupby("studytime", as_index=False)
+            dados_escolas.assign(
+                situacao=dados_escolas["G3"].ge(10).map({True: "Aprovado", False: "Reprovado"}),
+            )
+            .groupby(["studytime", "situacao"], as_index=False)
             .agg(alunos=("G3", "size"), nota_media=("G3", "mean"))
             .assign(faixa_estudo=lambda dados: dados["studytime"].map(FAIXAS_ESTUDO))
         )
@@ -299,19 +353,21 @@ with aba_kpis:
         )
         barras = (
             alt.Chart(resumo_estudo)
-            .mark_bar(color=COR_DESTAQUE)
+            .mark_bar()
             .encode(
                 x=alt.X(
                     "faixa_estudo:N", title="Estudo semanal",
                     sort=list(FAIXAS_ESTUDO.values()), axis=alt.Axis(labelAngle=0),
                 ),
-                y=alt.Y("alunos:Q", title="Alunos", axis=alt.Axis(tickMinStep=1)),
+                y=alt.Y("alunos:Q", title="Alunos", stack="zero", axis=alt.Axis(tickMinStep=1)),
+                color=alt.Color("situacao:N", title="Situação", scale=CORES_SITUACAO),
                 opacity=alt.condition(clique, alt.value(1), alt.value(0.3)),
                 tooltip=[
                     alt.Tooltip("studytime:O", title="Código"),
                     alt.Tooltip("faixa_estudo:N", title="Estudo semanal"),
+                    alt.Tooltip("situacao:N", title="Situação"),
                     alt.Tooltip("alunos:Q", title="Alunos"),
-                    alt.Tooltip("nota_media:Q", title="Nota final média", format=".2f"),
+                    alt.Tooltip("nota_media:Q", title="Nota final média do grupo", format=".2f"),
                 ],
             )
             .add_params(clique)
@@ -332,12 +388,17 @@ with aba_kpis:
             st.caption("Sem seleção nas barras: todas as faixas do recorte estão incluídas.")
 
     with espaco_metricas:
+        st.subheader("Métricas")
         exibir_metricas(dados_selecionados, dashboard_kpis=True)
         st.caption(
             f"{len(dados_selecionados)} de {len(dados_escolas)} alunos do recorte "
             "de escolas após a seleção de estudo."
         )
 
+with col_donut:
+    exibir_donut_aprovacao(dados_selecionados)
+
+with espaco_desempenho:
     if dados_selecionados.empty:
         st.info("Não há dados para os gráficos de desempenho. Ajuste os filtros ou limpe a seleção.")
     else:

@@ -4,6 +4,7 @@
 
 - **Variável:** G3 (Nota final — transformada em categoria: >= 10 Aprovado, < 10 Reprovado).
 - **O que mede:** A proporção e a quantidade absoluta de alunos que alcançaram a nota mínima exigida em comparação aos que não alcançaram.
+- **Visualização:** Donut de aprovados e reprovados, com quantidades, percentuais e uma frase comparando os dois grupos no recorte filtrado. A razão é apresentada como “X vezes o número de”, sem divisão por zero quando uma categoria não tem alunos.
 - **Por que foi escolhida:** É o indicador de "sucesso x falha" do sistema escolar. Antes de olhar para os detalhes, a gestão precisa saber o saldo final de aprovações.
 - **Público-alvo:** Diretores, coordenadores pedagógicos e gestores escolares.
 - **Qual decisão pode ser apoiada por essa métrica?** Alocação de recursos financeiros e de tempo para turmas de recuperação, nivelamento escolar ou mudanças na metodologia de ensino (se o índice de reprovação está alto, o problema pode ser na metodologia).
