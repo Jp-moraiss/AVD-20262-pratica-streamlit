@@ -2,7 +2,7 @@
 
 **Nome:** João Pedro Aguiar Morais
 
-**Data:** 28 e 29/10/2026
+**Data:** 28, 29 e 30/10/2026
 
 ## Ferramenta
 
@@ -315,3 +315,48 @@ qualquer segmento.
   ausência de valores na diagonal e acima dela, ordem das variáveis e recálculo
   após filtros. Com duas variáveis, resta somente uma correlação visível.
 - Pylance sem diagnósticos no app. Nenhum commit ou push realizado.
+
+## 30/10/2026 — Cartões para as métricas do Dashboard 2
+
+### Prompt usado
+
+> para as métricas no dashboard 2, coloque um sombreamento em caixas para cada métrica, para deixar elas visualmente separadas, diminuindo o risco do usuário confundir duas métricas
+
+### O que foi implementado pela IA
+
+- A pedido do aluno, cada uma das quatro métricas recebeu um cartão com borda,
+  cantos arredondados e sombra discreta em roxo.
+- Aprovação e reprovação permanecem no mesmo cartão, pois compõem uma métrica.
+- O estilo foi limitado aos cartões do Dashboard 2, sem alterar os cálculos,
+  filtros, gráficos ou dependências.
+- Na verificação visual, os cartões ficaram estreitos na janela menor. Foi
+  adicionada uma largura mínima responsiva, permitindo novas linhas quando
+  não houver espaço para os quatro cartões lado a lado.
+
+### Validações realizadas pela IA
+
+- **17 testes automatizados passaram**, incluindo um novo teste da separação e
+  do conteúdo dos quatro cartões.
+- No navegador, foram conferidas as bordas, as sombras aplicadas e a quebra dos
+  cartões em novas linhas na janela menor.
+- Nenhum commit, push ou deploy realizado.
+
+## 30/10/2026 — Organização dos cartões em três colunas
+
+### Prompt usado
+
+> coloque a taxa de aprovação no meio, e a média da nota final e mediana de faltas coloque na esquerda. Dessa forma vai ficar 3 colunas, a primeira da esquerda com média da nota final e mediana um em cima do outro, a segunda com taxa de aprovação x reprovação no meio e a terceira com o tempo de estudo semanal
+
+### O que foi implementado pela IA
+
+- Aplicada a organização definida pelo aluno: média da nota final acima da
+  mediana de faltas na coluna esquerda, aprovação e reprovação na coluna central
+  e tempo de estudo semanal na coluna direita.
+- Preservados os cartões individuais, bordas, sombras e adaptação a telas menores.
+- Cálculos, filtros e gráficos mantidos; README e testes ajustados à nova ordem.
+
+### Validações realizadas pela IA
+
+- **17 testes automatizados passaram**, incluindo a verificação de exatamente
+  três colunas e da posição e ordem dos cartões em cada uma.
+- Nenhum commit, push ou deploy realizado.

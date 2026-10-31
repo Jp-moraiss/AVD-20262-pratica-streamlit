@@ -32,6 +32,10 @@ evoluindo o [prompt inicial](prompts/prompt.md) e o
 - **Layout do Dashboard 2:** conforme o [rascunho manual](entregas/rascunho-manual-dashboard2.png),
   um bloco de métricas no topo e outro de visualizações abaixo. O donut com
   storytelling, as barras de estudo, o histograma e a dispersão ficam no segundo bloco.
+  Cada métrica tem seu próprio cartão com borda e sombra; aprovação e reprovação
+  ficam juntas. São três colunas: média e mediana empilhadas à esquerda,
+  aprovação/reprovação no centro e estudo semanal à direita.
+  As colunas passam para novas linhas quando falta espaço.
 - **Seleção vinculada:** clique nas barras de faixa de estudo para recalcular os
   quatro KPIs, o donut e os outros dois gráficos; Shift + clique seleciona várias faixas.
   As barras empilham aprovados e reprovados; clicar em qualquer segmento seleciona

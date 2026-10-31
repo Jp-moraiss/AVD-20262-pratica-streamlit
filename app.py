@@ -61,8 +61,18 @@ def exibir_donut_aprovacao(dados: pd.DataFrame) -> None:
 
 def exibir_metricas(dados: pd.DataFrame, dashboard_kpis: bool = False) -> None:
     if dashboard_kpis:
-        col_situacao, col_media, col_faltas, col_estudo = st.columns(4)
-        with col_situacao:
+        col_resumo, col_situacao, col_estudo = st.columns(3)
+        with col_resumo.container(border=True, key="cartao_kpi_media"):
+            st.metric(
+                "Média da nota final",
+                "—" if dados.empty else f"{dados['G3'].mean():.2f}",
+            )
+        with col_resumo.container(border=True, key="cartao_kpi_faltas"):
+            st.metric(
+                "Mediana de faltas",
+                "—" if dados.empty else f"{dados['absences'].median():.1f}",
+            )
+        with col_situacao.container(border=True, key="cartao_kpi_situacao"):
             st.markdown("**Taxa de aprovação vs. reprovação**")
             aprovados = int(dados["G3"].ge(10).sum())
             reprovados = int(dados["G3"].lt(10).sum())
@@ -70,15 +80,7 @@ def exibir_metricas(dados: pd.DataFrame, dashboard_kpis: bool = False) -> None:
                 percentual = "—" if dados.empty else f"{quantidade / len(dados):.1%}"
                 st.metric(situacao, percentual)
                 st.caption(f"{situacao}: {quantidade} alunos ({percentual})")
-        col_media.metric(
-            "Média da nota final",
-            "—" if dados.empty else f"{dados['G3'].mean():.2f}",
-        )
-        col_faltas.metric(
-            "Mediana de faltas",
-            "—" if dados.empty else f"{dados['absences'].median():.1f}",
-        )
-        with col_estudo:
+        with col_estudo.container(border=True, key="cartao_kpi_estudo"):
             st.markdown("**Tempo de estudo semanal (extra-classe)**")
             quantidades = dados["studytime"].value_counts().reindex(list(FAIXAS_ESTUDO), fill_value=0)
             st.dataframe(
@@ -102,6 +104,20 @@ st.set_page_config(
     page_title="Student Performance | João Pedro",
     layout="wide",
 )
+
+st.html("""
+    <style>
+    .st-key-metricas_kpi [data-testid="stColumn"] {
+        min-width: min(100%, 240px);
+    }
+    .st-key-cartao_kpi_situacao,
+    .st-key-cartao_kpi_media,
+    .st-key-cartao_kpi_faltas,
+    .st-key-cartao_kpi_estudo {
+        box-shadow: 0 4px 14px rgba(117, 65, 160, 0.25);
+    }
+    </style>
+""")
 
 st.title("Desempenho escolar — Student Performance")
 st.caption("João Pedro Aguiar Morais | Análise e Visualização de Dados")

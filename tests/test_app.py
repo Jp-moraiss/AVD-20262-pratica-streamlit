@@ -33,10 +33,10 @@ class DashboardTests(unittest.TestCase):
         values = [str(len(expected))]
         if offset == 1:
             values = [
-                "—" if expected.empty else f"{expected.G3.ge(10).mean():.1%}",
-                "—" if expected.empty else f"{expected.G3.lt(10).mean():.1%}",
                 "—" if expected.empty else f"{expected.G3.mean():.2f}",
                 "—" if expected.empty else f"{expected.absences.median():.1f}",
+                "—" if expected.empty else f"{expected.G3.ge(10).mean():.1%}",
+                "—" if expected.empty else f"{expected.G3.lt(10).mean():.1%}",
             ]
             captions = [caption.value for caption in app.caption]
             approved = int(expected.G3.ge(10).sum())
@@ -204,6 +204,50 @@ class DashboardTests(unittest.TestCase):
         hist = json.loads(app.get("plotly_chart")[1].proto.spec)["data"][0]["x"]
         values = np.frombuffer(base64.b64decode(hist["bdata"]), dtype=hist["dtype"])
         np.testing.assert_array_equal(values, expected.absences)
+
+    def test_kpi_cards_group_each_metric(self):
+        app = self.run_app()
+        metrics = next(
+            block for block in app.tabs[1].get("flex_container")
+            if block.key == "metricas_kpi"
+        )
+        columns = metrics.get("column")
+        self.assertEqual(len(columns), 3)
+        self.assertEqual(
+            [[block.key for block in column.get("flex_container") if block.key]
+             for column in columns],
+            [
+                ["cartao_kpi_media", "cartao_kpi_faltas"],
+                ["cartao_kpi_situacao"],
+                ["cartao_kpi_estudo"],
+            ],
+        )
+        cards = {
+            block.key: block
+            for block in app.tabs[1].get("flex_container")
+            if block.key and block.key.startswith("cartao_kpi_")
+        }
+        self.assertEqual(set(cards), {
+            "cartao_kpi_situacao", "cartao_kpi_media",
+            "cartao_kpi_faltas", "cartao_kpi_estudo",
+        })
+        self.assertEqual(
+            [metric.label for metric in cards["cartao_kpi_situacao"].get("metric")],
+            ["Aprovados", "Reprovados"],
+        )
+        self.assertEqual(
+            [metric.label for metric in cards["cartao_kpi_media"].get("metric")],
+            ["Média da nota final"],
+        )
+        self.assertEqual(
+            [metric.label for metric in cards["cartao_kpi_faltas"].get("metric")],
+            ["Mediana de faltas"],
+        )
+        self.assertEqual(len(cards["cartao_kpi_estudo"].get("dataframe")), 1)
+        for card in cards.values():
+            self.assertTrue(card.proto.flex_container.border)
+            self.assertFalse(card.get("vega_lite_chart"))
+        self.assert_metrics(app, self.df)
 
     def test_zero_one_and_two_variables(self):
         app = self.run_app()
